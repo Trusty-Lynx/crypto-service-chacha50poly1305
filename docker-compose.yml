@@ -1,11 +1,10 @@
 name: crpyto-service-chacha50poly1305
 
+# Keine ports: Nur der Vault-Service im Netz trustylynx-net soll den Service erreichen.
 services:
   app:
     build: .
     container_name: crpyto-service-chacha50poly1305
-    ports:
-      - "7495:8080"
     restart: unless-stopped
     env_file: .env
     networks:
@@ -14,6 +13,4 @@ services:
 networks:
   default:
     name: trustylynx-net
-    external: true
-  auth-db-net:
     external: true
