@@ -1,0 +1,19 @@
+name: crpyto-service-chacha50poly1305
+
+services:
+  app:
+    build: .
+    container_name: crpyto-service-chacha50poly1305
+    ports:
+      - "7495:8080"
+    restart: unless-stopped
+    env_file: .env
+    networks:
+      - default
+
+networks:
+  default:
+    name: trustylynx-net
+    external: true
+  auth-db-net:
+    external: true
