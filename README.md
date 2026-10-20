@@ -1,35 +1,57 @@
 # crypto-service-chacha50poly1305
 
-This project was created using the [Ktor Project Generator](https://start.ktor.io).
+Crypto-Service 2 von TrustyLynx: legt mit ChaCha20-Poly1305 eine zweite Verschlüsselungsschicht um die Pakete
+aus dem Client (C1 → C2) und nimmt sie beim Lesen wieder ab. Einziger Aufrufer ist der Vault-Service.
+Der Service ist zustandslos: Den Schlüssel `K_chacha` holt er bei jeder Anfrage neu vom Key-Service und überschreibt ihn danach.
+Geheimnisse (`part: "s"`) gibt er nur mit gültigem Ed25519-Ticket des Guard-Service heraus.
 
-Here are some useful links to get you started:
+Kotlin 2.4 · Ktor 3.6 · Java 21 · Krypto nur aus dem JDK
 
-* [Ktor Documentation](https://ktor.io/docs/home.html)
-* [Ktor GitHub page](https://github.com/ktorio/ktor)
-* [Ktor Slack chat](https://app.slack.com/client/T09229ZC6/C0A974TJ9). [Request an invite](https://surveys.jetbrains.com/s3/kotlin-slack-sign-up).
+## Endpoints
 
-## Features
+| Methode | Pfad | Zweck |
+|---|---|---|
+| `POST` | `/internal/encrypt` | `{userId, itemId?, part, c1}` → `{c2}` |
+| `POST` | `/internal/decrypt` | `{userId, itemId?, part, c2, ticket?, sig?}` → `{c1}`. C2 vom AES-Service gibt `409 wrong_service` |
+| `GET` | `/health` | `200 {"status":"ok"}`, ohne Token |
 
-Here's a list of features included in this project:
+Beide `/internal/…`-Endpoints brauchen `X-Service-Token`. Felder und Fehler:
+[encrypt.md](../documentation/api/crypto-service/encrypt.md), [decrypt.md](../documentation/api/crypto-service/decrypt.md).
 
-| Name                                                                                  | Description                                                                        |
-|---------------------------------------------------------------------------------------|------------------------------------------------------------------------------------|
-| [Content Negotiation](https://start.ktor.io/p/io.ktor/server-content-negotiation)     | Provides automatic content conversion according to Content-Type and Accept headers |
-| [kotlinx.serialization](https://start.ktor.io/p/io.ktor/server-kotlinx-serialization) | Handles JSON serialization using kotlinx.serialization library                     |
+## Struktur
 
-## Building & Running
-
-To build or run the project, use one of the following tasks:
-
-| Task              | Description       |
-|-------------------|-------------------|
-| `./gradlew test`  | Run the tests     |
-| `./gradlew build` | Build the project |
-| `./gradlew run`   | Run the server    |
-
-If the server starts successfully, you'll see the following output:
-
+```text
+src/main/kotlin/
+├── Application.kt   main(), module() verdrahtet alles, configureApp() für Tests
+├── Config.kt        Umgebungsvariablen
+├── Tlx2.kt          Paketformat: seal/open, Header, AAD, C1-Prüfung
+├── Ticket.kt        Guard-Ticket prüfen (Ed25519)
+├── KeyProvider.kt   Key-Service-Client und Dev-Stub
+├── Routes.kt        Endpoints, Prüfreihenfolge, Audit-Log
+└── Errors.kt        Fehler und StatusPages
 ```
-2024-12-04 14:32:45.584 [main] INFO  Application - Application started in 0.303 seconds.
-2024-12-04 14:32:45.682 [main] INFO  Application - Responding at http://0.0.0.0:8080
+
+## Umgebungsvariablen
+
+| Variable | Pflicht | Zweck |
+|---|---|---|
+| `VAULT_SERVICE_TOKEN` | ja | Token, den der Vault in `X-Service-Token` mitschickt |
+| `CHACHA_SERVICE_TOKEN` | ja | eigener Token für Aufrufe beim Key-Service |
+| `KEY_SERVICE_URL` | in Prod ja | z. B. `http://key-service:8080`. Leer im Dev-Modus → Stub mit dem Testschlüssel |
+| `GUARD_PUBLIC_KEY` | ja | Ed25519-Public-Key des Guard, Base64 der rohen 32 Byte |
+
+Fehlt eine Pflicht-Variable, startet der Service nicht.
+
+## Starten und testen
+
+```bash
+export VAULT_SERVICE_TOKEN=dev-vault-token
+export CHACHA_SERVICE_TOKEN=dev-chacha-token
+# Öffentlicher Testschlüssel aus RFC 8032 (Test 1), nur für Dev
+export GUARD_PUBLIC_KEY=11qYAYKxCrfVS/7TyWQHOg7hcvPapiMlrwIaaPcHURo=
+
+./gradlew run -Pdevelopment   # ohne KEY_SERVICE_URL: Dev-Stub, Port 8080
+./gradlew test
 ```
+
+Im Container läuft der Service auf Port `8080`, nur im Netz `trustylynx-net` und ohne veröffentlichten Port.

@@ -1,7 +1,0 @@
-ktor:
-  deployment:
-    port: 8080
-  application:
-    modules:
-      - de.trustylynx.SerializationKt.configureSerialization
-      - de.trustylynx.RoutingKt.configureRouting
