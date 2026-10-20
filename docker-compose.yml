@@ -1,12 +1,13 @@
 name: crypto-service-chacha50poly1305
 
-# Keine ports: Nur der Vault-Service im Netz trustylynx-net soll den Service erreichen.
 services:
   app:
     build: .
     container_name: crypto-service-chacha50poly1305
     restart: unless-stopped
     env_file: .env
+    ports:
+      - "127.0.0.1:7495:8080"
     networks:
       - default
 
