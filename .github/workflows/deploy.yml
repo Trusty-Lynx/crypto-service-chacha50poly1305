@@ -23,12 +23,12 @@ jobs:
             --exclude='.git' \
             --exclude='.github' \
             --exclude='.env' \
-            ./ trustylynx@152.53.183.40:/opt/trustylynx/crpyto-service-chacha50poly1305/
+            ./ trustylynx@152.53.183.40:/opt/trustylynx/crypto-service-chacha50poly1305/
 
       - name: Build & restart
         run: |
           ssh trustylynx@152.53.183.40 '
-            cd /opt/trustylynx/crpyto-service-chacha50poly1305 &&
+            cd /opt/trustylynx/crypto-service-chacha50poly1305 &&
             docker compose build &&
             docker compose up -d
           '
