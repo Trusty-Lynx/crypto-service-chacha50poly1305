@@ -20,8 +20,6 @@ class BadRequest : ApiException(HttpStatusCode.BadRequest, "bad_request")
 
 class Unauthorized : ApiException(HttpStatusCode.Unauthorized, "unauthorized")
 
-class Forbidden : ApiException(HttpStatusCode.Forbidden, "forbidden")
-
 class WrongService : ApiException(HttpStatusCode.Conflict, "wrong_service")
 
 class PayloadTooLarge : ApiException(HttpStatusCode.PayloadTooLarge, "payload_too_large")

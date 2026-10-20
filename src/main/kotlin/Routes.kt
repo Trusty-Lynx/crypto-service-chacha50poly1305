@@ -12,7 +12,6 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 import java.security.MessageDigest
-import java.security.PublicKey
 import java.security.SecureRandom
 import javax.crypto.AEADBadTagException
 
@@ -25,6 +24,9 @@ private val ID_PATTERN = Regex("[A-Za-z0-9._-]{1,128}")
 
 private val audit = LoggerFactory.getLogger("audit")
 
+/** Unbekannte Felder im Body werden ignoriert, nicht abgelehnt. */
+private val RequestJson = Json { ignoreUnknownKeys = true }
+
 @Serializable
 data class EncryptRequest(val userId: String, val itemId: String? = null, val part: String, val c1: String) {
     override fun toString(): String = "EncryptRequest(userId=$userId, itemId=$itemId, part=$part)"
@@ -36,14 +38,7 @@ data class EncryptResponse(val c2: String) {
 }
 
 @Serializable
-data class DecryptRequest(
-    val userId: String,
-    val itemId: String? = null,
-    val part: String,
-    val c2: String,
-    val ticket: String? = null,
-    val sig: String? = null,
-) {
+data class DecryptRequest(val userId: String, val itemId: String? = null, val part: String, val c2: String) {
     override fun toString(): String = "DecryptRequest(userId=$userId, itemId=$itemId, part=$part)"
 }
 
@@ -80,7 +75,7 @@ fun Route.cryptoRoutes(config: AppConfig, keys: KeyProvider) {
         val c1 = try {
             call.requireServiceToken(vaultToken)
             request = call.receiveJson<DecryptRequest>()
-            decrypt(request, config.guardPublicKey, keys)
+            decrypt(request, keys)
         } catch (e: Throwable) {
             audit.warn(
                 "decrypt failed userId={} itemId={} part={} error={}",
@@ -93,17 +88,12 @@ fun Route.cryptoRoutes(config: AppConfig, keys: KeyProvider) {
     }
 }
 
-/** Reihenfolge ist Pflicht: erst Ticket, dann Header, erst danach den Schlüssel holen. */
-private suspend fun decrypt(request: DecryptRequest, guardPublicKey: PublicKey, keys: KeyProvider): ByteArray {
+/** Reihenfolge ist Pflicht: erst Body, dann Header, erst danach den Schlüssel holen. */
+private suspend fun decrypt(request: DecryptRequest, keys: KeyProvider): ByteArray {
     val target = target(request.userId, request.itemId, request.part)
     val c2 = request.c2.decodeBase64OrNull()
         ?.takeIf { it.size in Tlx2.MIN_C2_LENGTH..Tlx2.MAX_C2_LENGTH }
         ?: throw BadRequest()
-    if (target.part == Part.SECRET) {
-        val ticket = request.ticket?.decodeBase64OrNull() ?: throw Forbidden()
-        val sig = request.sig?.decodeBase64OrNull() ?: throw Forbidden()
-        if (!isValidTicket(guardPublicKey, ticket, sig, target)) throw Forbidden()
-    }
     val keyVersion = Tlx2.keyVersionOf(c2)
     return keys.withKey(target.userId, keyVersion) { key, _ ->
         try {
@@ -152,7 +142,7 @@ private suspend inline fun <reified T> ApplicationCall.receiveJson(): T {
     val body = receiveChannel().readBuffer(MAX_BODY_BYTES + 1).readByteArray()
     if (body.size > MAX_BODY_BYTES) throw PayloadTooLarge()
     return try {
-        Json.decodeFromString<T>(body.decodeToString())
+        RequestJson.decodeFromString<T>(body.decodeToString())
     } catch (_: IllegalArgumentException) {
         throw BadRequest()
     }
