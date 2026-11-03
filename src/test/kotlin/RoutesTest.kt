@@ -1,5 +1,10 @@
 package de.trustylynx
 
+import de.trustylynx.clients.DerivedKey
+import de.trustylynx.clients.KeyProvider
+import de.trustylynx.security.Vectors
+import de.trustylynx.security.base64
+import de.trustylynx.security.toBase64
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.request.header
@@ -77,7 +82,6 @@ private fun cryptoTest(block: suspend CryptoTestEnv.() -> Unit) = testApplicatio
     CryptoTestEnv(client, keys).block()
 }
 
-/** Vektor-C2 mit [change] an einer Kopie der Bytes. */
 private fun vectorC2(change: (ByteArray) -> Unit): String = Vectors.C2.base64().also(change).toBase64()
 
 private suspend fun HttpResponse.field(name: String): String =
@@ -124,7 +128,7 @@ class RoutesTest {
     @Test
     fun `T5 a flipped bit gives integrity_error`() = cryptoTest {
         val size = Vectors.C2.base64().size
-        // Key-Version, Nonce, Chiffrat, Tag
+        // key version, nonce, ciphertext, tag
         for (index in listOf(6, 10, 30, size - 1)) {
             val c2 = vectorC2 { it[index] = (it[index].toInt() xor 1).toByte() }
             assertError(HttpStatusCode.InternalServerError, "integrity_error", decrypt(c2 = c2), "byte $index")
