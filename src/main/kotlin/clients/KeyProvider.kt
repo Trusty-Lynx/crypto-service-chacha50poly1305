@@ -1,5 +1,8 @@
-package de.trustylynx
+package de.trustylynx.clients
 
+import de.trustylynx.SERVICE_TOKEN_HEADER
+import de.trustylynx.models.KeyServiceException
+import de.trustylynx.security.decodeBase64OrNull
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.cio.CIO
@@ -16,13 +19,14 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
-/** Teilschlüssel K_chacha eines Nutzers. Der Aufrufer überschreibt [key] nach Gebrauch. */
-class DerivedKey(val key: ByteArray, val version: Int) {
-    override fun toString(): String = "DerivedKey(version=$version)"
-}
+// test vector key from the docs, only used in development mode
+private const val DEV_KEY_BASE64 = "2QTTNUrVlYzUxxTvXLXKcntIYUyrgBAQc3yl+RSFZB8="
+
+// whoever gets this has to overwrite key with zeros after use
+class DerivedKey(val key: ByteArray, val version: Int)
 
 interface KeyProvider {
-    /** Ohne [version] liefert der Key-Service die aktive Version. */
+    // version null means the current key
     suspend fun derive(userId: String, version: Int?): DerivedKey
 }
 
@@ -45,7 +49,7 @@ class HttpKeyProvider(
             }
             response.body<DeriveResponse>()
         } catch (e: CancellationException) {
-            throw e
+            throw e // request got cancelled, not the key service's fault
         } catch (e: KeyServiceException) {
             throw e
         } catch (e: Exception) {
@@ -56,19 +60,15 @@ class HttpKeyProvider(
     }
 }
 
-/** Nur im Dev-Modus, solange der Key-Service `keys/derive` nicht hat: Testschlüssel K_chacha aus Verschlüsselung.md. */
 class DevKeyProvider : KeyProvider {
     override suspend fun derive(userId: String, version: Int?): DerivedKey =
         DerivedKey(DEV_KEY_BASE64.decodeBase64OrNull()!!, 1)
-
-    private companion object {
-        const val DEV_KEY_BASE64 = "2QTTNUrVlYzUxxTvXLXKcntIYUyrgBAQc3yl+RSFZB8="
-    }
 }
 
 fun createKeyServiceHttpClient(): HttpClient = HttpClient(CIO) {
     expectSuccess = false
     install(ContentNegotiation) {
+        // explicitNulls = false leaves version out of the request when it's null
         json(Json { ignoreUnknownKeys = true; explicitNulls = false })
     }
     install(HttpTimeout) {
