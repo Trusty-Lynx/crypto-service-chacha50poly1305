@@ -1,10 +1,10 @@
-package de.trustylynx
+package de.trustylynx.security
 
 import java.util.Base64
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 
-/** Testvektoren aus Verschlüsselung.md (V10). */
+// test vectors from the encryption doc (V10)
 object Vectors {
     val K_CHACHA = "d904d3354ad5958cd4c714ef5cb5ca727b48614cab801010737ca5f91485641f".hexToByteArray()
     val N2 = "b4543fabe6f0040620b7fae6".hexToByteArray()
